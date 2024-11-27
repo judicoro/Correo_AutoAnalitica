@@ -1,3 +1,4 @@
+from flask import Flask
 from pymongo import MongoClient
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -7,6 +8,9 @@ import threading
 import schedule
 import os
 from datetime import datetime, timedelta
+
+# Configuración de Flask
+app = Flask(__name__)
 
 # Conexión a MongoDB
 uri = "mongodb+srv://jucoronel:AivF1YaQSkx3NV4Q@autoanalitica.wh5c6.mongodb.net/?retryWrites=true&w=majority&appName=AutoAnalitica"
@@ -20,7 +24,6 @@ productos_collection = db["productos_limpios"]
 # Diccionario para rastrear correos enviados recientemente
 correos_enviados = {}
 
-
 def formatear_precio(precio):
     """
     Convierte un precio a formato XXX.XXX sin decimales y con punto como separador de miles.
@@ -30,7 +33,6 @@ def formatear_precio(precio):
         return f"{int(float(precio)):,}".replace(",", ".")
     except (ValueError, TypeError):
         return "No disponible"
-
 
 def obtener_productos_baratos(marca, modelo):
     """
@@ -57,73 +59,6 @@ def obtener_productos_baratos(marca, modelo):
     productos_baratos.sort(key=lambda x: x["precio_actual"] if isinstance(x["precio_actual"], (int, float)) else float("inf"))
     return productos_baratos[:5]
 
-
-def generar_html(cliente, productos):
-    """
-    Genera el contenido HTML del correo con la lista completa de productos.
-    """
-    logo_url = "https://s11.aconvert.com/convert/p3r68-cdx67/spx89-sv2e0.webp"
-    footer_image_url = "https://s11.aconvert.com/convert/p3r68-cdx67/cx2p6-6m5c0.webp"
-
-    lista_completa_html = ""
-    for producto in productos:
-        precio_original_formateado = formatear_precio(producto.get("precio_original", "No disponible"))
-        lista_completa_html += f"""
-        <tr>
-            <td style="padding:10px; border:1px solid #ddd; text-align:center;">
-                <img src="{producto['imagenUrl']}" alt="{producto['nombre']}" style="width:100px; height:auto;">
-            </td>
-            <td style="padding:10px; border:1px solid #ddd;">
-                <p style="margin:0; font-size:14px; color:#333;"><strong>{producto['nombre']}</strong></p>
-                <p style="margin:5px 0; font-size:14px; color:#f4b400;"><strong>${producto['precio_formateado']}</strong></p>
-                <a href="{producto['link']}" style="font-size:14px; color:#007bff; text-decoration:none;">Ver Producto</a>
-            </td>
-        </tr>
-        """
-
-    html = f"""
-    <html>
-    <head>
-        <style>
-            body {{
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333;
-                background-color: #f9f9f9;
-                margin: 0;
-                padding: 0;
-            }}
-            .header {{
-                text-align: center;
-                background-color: #000;
-                color: #f4b400;
-                padding: 20px;
-            }}
-            table {{
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 20px;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="header">
-            <h1>Ofertas Exclusivas para tu Auto</h1>
-        </div>
-        <h2>Hola, {cliente['correo']}!</h2>
-        <p>Te presentamos las mejores ofertas para tu vehículo ({cliente['marca']} {cliente['modelo']}):</p>
-        <table>
-            {lista_completa_html}
-        </table>
-        <div class="footer">
-            <img src="{footer_image_url}" alt="AutoAnalitica Footer">
-        </div>
-    </body>
-    </html>
-    """
-    return html
-
-
 def enviar_correo(cliente, productos):
     """
     Envía un correo electrónico al cliente con los productos más baratos.
@@ -132,7 +67,6 @@ def enviar_correo(cliente, productos):
     contraseña = "lrrh sorq qflk mwin"
     destinatario = cliente["correo"]
 
-    # Evitar enviar correos duplicados dentro de un intervalo de tiempo (5 minutos)
     ahora = datetime.now()
     if destinatario in correos_enviados:
         ultima_vez = correos_enviados[destinatario]
@@ -140,7 +74,6 @@ def enviar_correo(cliente, productos):
             print(f"Correo ya enviado recientemente a {destinatario}. Ignorando...")
             return
 
-    # Actualizar la marca de tiempo de envío del correo
     correos_enviados[destinatario] = ahora
 
     mensaje = MIMEMultipart("alternative")
@@ -160,7 +93,6 @@ def enviar_correo(cliente, productos):
     except Exception as e:
         print(f"Error al enviar correo a {destinatario}: {e}")
 
-
 def escuchar_nuevos_clientes():
     """
     Escucha cambios en la colección Cliente y envía correos automáticamente a los nuevos clientes.
@@ -176,7 +108,6 @@ def escuchar_nuevos_clientes():
             if productos:
                 enviar_correo(cliente_nuevo, productos)
 
-
 def iniciar_programacion():
     """
     Configura el envío de correos a las 3 PM para clientes existentes.
@@ -187,12 +118,16 @@ def iniciar_programacion():
         schedule.run_pending()
         time.sleep(1)
 
+# Ruta raíz para verificar que la aplicación está activa
+@app.route("/")
+def home():
+    return "OK"
 
 if __name__ == "__main__":
+    # Iniciar los hilos para las tareas en segundo plano
     threading.Thread(target=escuchar_nuevos_clientes).start()
     threading.Thread(target=iniciar_programacion).start()
 
-    port = os.environ.get("PORT", 5000)
-    print(f"Simulando escucha en el puerto {port}...")
-    while True:
-        time.sleep(1)
+    # Ejecutar el servidor Flask
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
