@@ -59,6 +59,71 @@ def obtener_productos_baratos(marca, modelo):
     productos_baratos.sort(key=lambda x: x["precio_actual"] if isinstance(x["precio_actual"], (int, float)) else float("inf"))
     return productos_baratos[:5]
 
+def generar_html(cliente, productos):
+    """
+    Genera el contenido HTML del correo con la lista completa de productos.
+    """
+    logo_url = "https://s11.aconvert.com/convert/p3r68-cdx67/spx89-sv2e0.webp"
+    footer_image_url = "https://s11.aconvert.com/convert/p3r68-cdx67/cx2p6-6m5c0.webp"
+
+    lista_completa_html = ""
+    for producto in productos:
+        precio_original_formateado = formatear_precio(producto.get("precio_original", "No disponible"))
+        lista_completa_html += f"""
+        <tr>
+            <td style="padding:10px; border:1px solid #ddd; text-align:center;">
+                <img src="{producto['imagenUrl']}" alt="{producto['nombre']}" style="width:100px; height:auto;">
+            </td>
+            <td style="padding:10px; border:1px solid #ddd;">
+                <p style="margin:0; font-size:14px; color:#333;"><strong>{producto['nombre']}</strong></p>
+                <p style="margin:5px 0; font-size:14px; color:#f4b400;"><strong>${producto['precio_formateado']}</strong></p>
+                <a href="{producto['link']}" style="font-size:14px; color:#007bff; text-decoration:none;">Ver Producto</a>
+            </td>
+        </tr>
+        """
+
+    html = f"""
+    <html>
+    <head>
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                background-color: #f9f9f9;
+                margin: 0;
+                padding: 0;
+            }}
+            .header {{
+                text-align: center;
+                background-color: #000;
+                color: #f4b400;
+                padding: 20px;
+            }}
+            table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>Ofertas Exclusivas para tu Auto</h1>
+        </div>
+        <h2>Hola, {cliente['correo']}!</h2>
+        <p>Te presentamos las mejores ofertas para tu vehículo ({cliente['marca']} {cliente['modelo']}):</p>
+        <table>
+            {lista_completa_html}
+        </table>
+        <div class="footer">
+            <img src="{footer_image_url}" alt="Footer AutoAnalitica">
+        </div>
+    </body>
+    </html>
+    """
+    return html
+
 def enviar_correo(cliente, productos):
     """
     Envía un correo electrónico al cliente con los productos más baratos.
@@ -92,6 +157,20 @@ def enviar_correo(cliente, productos):
             print(f"Correo enviado a {destinatario}")
     except Exception as e:
         print(f"Error al enviar correo a {destinatario}: {e}")
+
+def procesar_clientes_existentes():
+    """
+    Envía correos a todos los clientes existentes.
+    """
+    print("Procesando clientes existentes para el envío de correos...")
+    clientes = clientes_collection.find()
+
+    for cliente in clientes:
+        productos = obtener_productos_baratos(cliente["marca"], cliente["modelo"])
+        if productos:
+            enviar_correo(cliente, productos)
+        else:
+            print(f"No se encontraron productos para {cliente['marca']} {cliente['modelo']}.")
 
 def escuchar_nuevos_clientes():
     """
